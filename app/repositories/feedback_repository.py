@@ -28,3 +28,16 @@ class FeedbackRepository:
         self.db.refresh(feedback)
 
         return feedback
+
+    def calculate_average_rating(self, project_id: int):
+        feedbacks = self.list_by_project(project_id)
+
+        if not feedbacks:
+            return 0.0
+
+        total = sum(
+            feedback.rating
+            for feedback in feedbacks
+        )
+
+        return round(total / len(feedbacks), 2)
