@@ -4,6 +4,8 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from ..models import Technology
 from ..schemas import TechnologyCreate, TechnologyResponse
+from ..repositories.technology_repository import TechnologyRepository
+
 
 router = APIRouter(
     prefix="/api/technologies",
@@ -20,10 +22,10 @@ def create_technology(
     technology_data: TechnologyCreate,
     db: Session = Depends(get_db)
 ):
-    existing_technology = (
-        db.query(Technology)
-        .filter(Technology.name == technology_data.name)
-        .first()
+    repository = TechnologyRepository(db)
+
+    existing_technology = repository.get_by_name(
+        technology_data.name
     )
 
     if existing_technology:
@@ -36,11 +38,7 @@ def create_technology(
         name=technology_data.name
     )
 
-    db.add(technology)
-    db.commit()
-    db.refresh(technology)
-
-    return technology
+    return repository.create(technology)
 
 
 @router.get(
@@ -50,4 +48,6 @@ def create_technology(
 def list_technologies(
     db: Session = Depends(get_db)
 ):
-    return db.query(Technology).all()
+    repository = TechnologyRepository(db)
+
+    return repository.list_all()
