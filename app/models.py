@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, ForeignKey, Table
+from sqlalchemy import Column, Integer, String, Text, ForeignKey, Table, Float
 from sqlalchemy.orm import relationship
 
 from .database import Base
@@ -38,6 +38,10 @@ class Project(Base):
     description = Column(Text, nullable=False)
     repository_url = Column(String(255), nullable=False)
     deploy_url = Column(String(255), nullable=True)
+
+    # Campos da segunda etapa
+    average_rating = Column(Float, nullable=False, default=0.0)
+    upvotes = Column(Integer, nullable=False, default=0)
 
     profile_id = Column(
         Integer,
