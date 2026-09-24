@@ -1,18 +1,41 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..models import Profile, Project
-from ..schemas import ProjectCreate, ProjectResponse
+from ..models import Project
+from ..schemas import (
+    FeedbackCreate,
+    FeedbackResponse,
+    ProjectCreate,
+    ProjectResponse
+)
 from ..repositories.profile_repository import ProfileRepository
 from ..repositories.project_repository import ProjectRepository
 from ..repositories.technology_repository import TechnologyRepository
+from ..services.project_service import ProjectService
 
 
 router = APIRouter(
     prefix="/api/projects",
     tags=["Projects"]
 )
+
+
+def project_to_response(project: Project):
+    return ProjectResponse(
+        id=project.id,
+        title=project.title,
+        description=project.description,
+        repository_url=project.repository_url,
+        deploy_url=project.deploy_url,
+        profile_id=project.profile_id,
+        technology_ids=[
+            technology.id
+            for technology in project.technologies
+        ],
+        average_rating=project.average_rating,
+        upvotes=project.upvotes
+    )
 
 
 @router.post(
@@ -63,20 +86,9 @@ def create_project(
         technologies=technologies
     )
 
-    project_repository.create(project)
+    project = project_repository.create(project)
 
-    return ProjectResponse(
-        id=project.id,
-        title=project.title,
-        description=project.description,
-        repository_url=project.repository_url,
-        deploy_url=project.deploy_url,
-        profile_id=project.profile_id,
-        technology_ids=[
-            technology.id
-            for technology in project.technologies
-        ]
-    )
+    return project_to_response(project)
 
 
 @router.get(
@@ -84,24 +96,59 @@ def create_project(
     response_model=list[ProjectResponse]
 )
 def list_projects(
+    technology: str | None = Query(default=None),
+    page: int = Query(default=1, ge=1),
+    size: int = Query(default=10, ge=1, le=100),
     db: Session = Depends(get_db)
 ):
-    repository = ProjectRepository(db)
+    query = db.query(Project)
 
-    projects = repository.list_all()
+    if technology:
+        query = query.filter(
+            Project.technologies.any(name=technology)
+        )
+
+    projects = (
+        query
+        .offset((page - 1) * size)
+        .limit(size)
+        .all()
+    )
 
     return [
-        ProjectResponse(
-            id=project.id,
-            title=project.title,
-            description=project.description,
-            repository_url=project.repository_url,
-            deploy_url=project.deploy_url,
-            profile_id=project.profile_id,
-            technology_ids=[
-                technology.id
-                for technology in project.technologies
-            ]
-        )
+        project_to_response(project)
         for project in projects
     ]
+
+
+@router.post(
+    "/{project_id}/feedbacks",
+    response_model=FeedbackResponse,
+    status_code=status.HTTP_201_CREATED
+)
+def create_feedback(
+    project_id: int,
+    feedback_data: FeedbackCreate,
+    db: Session = Depends(get_db)
+):
+    service = ProjectService(db)
+
+    return service.add_feedback(
+        project_id,
+        feedback_data
+    )
+
+
+@router.put(
+    "/{project_id}/upvote",
+    response_model=ProjectResponse
+)
+def upvote_project(
+    project_id: int,
+    db: Session = Depends(get_db)
+):
+    service = ProjectService(db)
+
+    project = service.upvote_project(project_id)
+
+    return project_to_response(project)
