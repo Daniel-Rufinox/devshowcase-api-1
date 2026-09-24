@@ -2,8 +2,12 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..models import Profile, Project, Technology
+from ..models import Profile, Project
 from ..schemas import ProjectCreate, ProjectResponse
+from ..repositories.profile_repository import ProfileRepository
+from ..repositories.project_repository import ProjectRepository
+from ..repositories.technology_repository import TechnologyRepository
+
 
 router = APIRouter(
     prefix="/api/projects",
@@ -20,10 +24,12 @@ def create_project(
     project_data: ProjectCreate,
     db: Session = Depends(get_db)
 ):
-    profile = (
-        db.query(Profile)
-        .filter(Profile.id == project_data.profile_id)
-        .first()
+    profile_repository = ProfileRepository(db)
+    technology_repository = TechnologyRepository(db)
+    project_repository = ProjectRepository(db)
+
+    profile = profile_repository.get_by_id(
+        project_data.profile_id
     )
 
     if not profile:
@@ -35,12 +41,8 @@ def create_project(
     technologies = []
 
     if project_data.technology_ids:
-        technologies = (
-            db.query(Technology)
-            .filter(
-                Technology.id.in_(project_data.technology_ids)
-            )
-            .all()
+        technologies = technology_repository.get_by_ids(
+            project_data.technology_ids
         )
 
         if len(technologies) != len(
@@ -61,9 +63,7 @@ def create_project(
         technologies=technologies
     )
 
-    db.add(project)
-    db.commit()
-    db.refresh(project)
+    project_repository.create(project)
 
     return ProjectResponse(
         id=project.id,
@@ -86,7 +86,9 @@ def create_project(
 def list_projects(
     db: Session = Depends(get_db)
 ):
-    projects = db.query(Project).all()
+    repository = ProjectRepository(db)
+
+    projects = repository.list_all()
 
     return [
         ProjectResponse(
