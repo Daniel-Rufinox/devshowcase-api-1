@@ -4,4 +4,4 @@ sqlalchemy
 pydantic
 pydantic-settings
 email-validator
-psycopg2-binary
+psycopg[binary]
